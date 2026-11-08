@@ -32,4 +32,93 @@
 
 # Реализация задания
 ## Подготовка
-Чтож, для простоты, сделаем небольшую схемку. Жалко, конечно, что dbdiagram.io немного недоступен в России, но можно и без него справиться. Спустя 10 минут поиска, я понял, что я не нашёл удобного аналога... Ладно, воспользуемся крайней мерой... PAINT!!! Честно говоря, я не понимаю как можно сделать одну БД для такого, так что немного увеличим количество БДэшек. Хотя, скорее-всего это и имелось в виду в задание, но сказать об этом, я думаю, стоит. И так, немного подумав, я понял, что тут очень много разных БД придётся делать... За что ¡-¡ ? На этом моменте нужно определиться с тем, какие БД должны быть, а именно: Бухгалтерия, склад, заказы, рецепты, персонал, столы(брони, поломки и т.д.), поставки и календарь(мероприятия, выходные, смены и т.д.). Немного, конечно, накинул много БД, но зато так интереснее.
+И так, немного подумав, я понял, что тут очень много разных БД придётся делать... За что ¡-¡ ? На этом моменте нужно определиться с тем, какие БД должны быть, а именно: Бухгалтерия, склад, заказы, рецепты, персонал, столы(брони, поломки и т.д.), поставки и календарь(мероприятия, выходные, смены и т.д.). Немного, конечно, накинул много БД, но зато так интереснее. Ну-с, время запускать pgAdmin и стартовать! Вот, к слову, момент с тем, что изначально я ставил PosgreSQL на Debian, но работаю на Windows. Дело в том, что мне влом возиться с неттопом, который лежит в дальнем углу ящика и вся гарнитура к нему раскидана в разных уголках квартиры. Ставить эмулятор я не вижу особо смысла, ведь, а какая разница между работой на разных операционках? Только в приложении, на котором я буду писать.
+
+## SQL запросы. Создание БД.
+Начнём с создание таблицы "Персонал", ну и сразу вместе добавил "Стол":
+```sql
+CREATE TABLE staff {
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL, --ну, я надеюсь, что мы не повтречаем какого-нибудь, кто по имени зайдёт за лимиты. Всё ж, оптимизацию никто не отменял
+    last_name VARCHAR(50) NOT NULL,
+    job_title VARCHAR(50) NOT NULL,
+    email TEXT, --ну, тут уж без лимитов, кто ж знает, какой у человека email
+    phone SMALLINT
+};
+
+CREATE TABLE tables_of_restrourant { --tables зарезервированное слово
+    id SERIAL PRIMARY KEY,
+    capacity SMALLINT, --полезно для брони
+    status_of_table VARCHAR(50) NOT NULL DEFAULT 'free', --увы, но status зарезервированное слово самой PosgreSQL
+};
+```
+
+И как вы думаете, что произошло? Ошибка! Потому, что я использовал фигурные скобки, вместо обычных. Ну и лищняя запятая в конце, на 13 строчке
+
+```sql
+CREATE TABLE staff (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL, --ну, я надеюсь, что мы не повтречаем какого-нибудь, кто по имени зайдёт за лимиты. Всё ж, оптимизацию никто не отменял
+    last_name VARCHAR(50) NOT NULL,
+    job_title VARCHAR(50) NOT NULL,
+    email TEXT, --ну, тут уж без лимитов, кто ж знает, какой у человека email
+    phone SMALLINT
+);
+
+CREATE TABLE tables_of_restrourant ( --tables зарезервированное слово
+    id SERIAL PRIMARY KEY, --тут было бы хорошо использовать SMALLSERIAL, но оставим по стандарту
+    capacity SMALLINT, --полезно для брони
+    status_of_table VARCHAR(50) NOT NULL --увы, но status зарезервированное слово самой PosgreSQL
+);
+```
+
+Теперь-то всё работает. Ну, тогда продолжаем. Теперь таблицы "Блюда", "Ингридиенты" и "Рецепты":
+
+```sql
+CREATE TABLE dishes (
+    id SERIAL PRIMARY KEY,
+    name_of_dishes TEXT NOT NULL,
+    price MONEY
+);
+
+CREATE TABLE ingredients (
+    id SERIAL PRIMARY KEY,
+    name_of_ingridients TEXT NOT NULL,
+    unit VARCHAR(20) DEFAULT 'grams',
+    stock_quantity SMALLINT DEFAULT 0
+);
+
+CREATE TABLE recipes (
+    dish_id INT REFERENCES dishes(id),
+    ingridient_id INT REFERENCES ingridients(id),
+    quantity TEXT --cколько чего и на что
+);
+```
+
+Ну и продолжим с "Бронь", "Заказы" и "Содержимое заказа":
+
+```sql
+CREATE TABLE bookings (
+    id SERIAL PRIMARY KEY,
+    table_id INT REFERENCES tables_of_restrourant(id),
+    client_name VARCHAR(50),
+    booking_time TIMESTAMP
+);
+
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    table_id INT REFERENCES tables_of_restrourant(id),
+    waiter_id INT REFERENCES staff(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    additional_info TEXT, --на случай, если есть какие-то предпочтения
+    finale_price MONEY
+);
+
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(id),
+    dish_id INT REFERENCES dishes(id),
+    quantity SMALLINT, --количество порций
+    price_at_sale MONEY
+);
+```
