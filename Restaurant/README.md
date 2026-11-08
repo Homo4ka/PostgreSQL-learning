@@ -83,7 +83,7 @@ CREATE TABLE dishes (
 
 CREATE TABLE ingredients (
     id SERIAL PRIMARY KEY,
-    name_of_ingridients TEXT NOT NULL,
+    name_of_ingredients TEXT NOT NULL,
     unit VARCHAR(20) DEFAULT 'grams',
     stock_quantity SMALLINT DEFAULT 0
 );
@@ -122,3 +122,217 @@ CREATE TABLE order_items (
     price_at_sale MONEY
 );
 ```
+
+Ну и закончим это всё дело таблицами "Скад" и "общая бухгалтерия":
+
+```sql
+CREATE TABLE supplier_transaction (
+    id SERIAL PRIMARY KEY,
+    ingredient_id INT REFERENCES ingredients(id),
+    quantity INT DEFAULT 0,
+    purchase_price MONEY NOT NULL,
+    transaction_date TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE finance_ledger (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(20) NOT NULL,
+    amount MONEY NOT NULL,
+    description TEXT,
+    order_id INT REFERENCES orders(id),
+    supply_id INT REFERENCES supplier_transaction(id) 
+);
+```
+
+Бум. Таблицы созданы.
+
+## Заполнение БД данными
+Я надеюсь, вы будете не против, если тестовые данные сгенерирует нейросеть. Всё же, это займёт много времени, если делать самому.
+
+```sql
+INSERT INTO staff (first_name, last_name, job_title, email, phone) VALUES
+('Иван', 'Иванов', 'официант', NULL, 88005553535),
+('Анна', 'Петрова', 'официант', 'seicharkakukushu@yandex.com', NULL),
+('Дмитрий', 'Сидоров', 'повар', 'poper4itiposoliti@mail.ru', NULL),
+('Елена', 'Смирнова', 'администратор', 'leno4kasuper2001@gmail.com', NULL);
+
+INSERT INTO tables_of_restrourant (capacity, status_of_table) VALUES
+(2, 'свободен'),
+(4, 'занят'),
+(4, 'сломан'),
+(6, 'свободен');
+```
+
+Ошибка... Печально.
+
+```terminal
+ERROR:  smallint вне диапазона 
+
+ОШИБКА:  smallint вне диапазона
+SQL state: 22003
+```
+
+Ну ни бе, ни ме. И как это понимать? Ладно, скорее-всего, виноват номер телефона у Ивана. Значит меняем тип данных.
+
+```sql
+ALTER TABLE staff
+ALTER COLUMN phone TYPE INT;
+```
+
+```terminal
+ERROR:  целое вне диапазона 
+
+ОШИБКА:  целое вне диапазона
+SQL state: 22003
+```
+
+ДА КУДА. Ладно, сам виноват, что на диапозон не посмотрел. Поменяем на BIGINT.
+
+```terminal
+INSERT 0 4
+
+Query returned successfully in 72 msec.
+```
+
+Как же прекрасно. Только вот, для оптимизации такое не пойдёт и по хорошему, стоило бы поменять на VARCHAR(20), но мы не будем тратить слишком много времени на такое. Пойдём дальше.
+
+```sql
+INSERT INTO ingredients (name_of_ingridients, unit, stock_quantity) VALUES
+('Яйцо', 'pieces', 100),
+('Сливочное масло', 'grams', 2000),
+('Лук', 'grams', 5000),
+('Соль', 'grams', 1000),
+('Молоко', 'ml', 10000),
+('Кофе в зернах', 'grams', 3000);
+
+INSERT INTO dishes (name_of_dishes, price) VALUES
+('Омлет классический', 250.00),
+('Капучино', 180.00),
+('Яичница с луком', 190.00);
+
+SELECT * FROM ingredients;
+SELECT * FROM dishes;
+```
+
+![](assets/1.png)
+![Результат](assets/2.png)
+
+Да, язабыл, что можно сразу же отобразить... Пред*лагаю сразу же взглянуть на предыдущие таблицы
+
+```sql
+SELECT * FROM staff;
+SELECT * FROM tables_of_restrourant;
+```
+
+![](assets/3.png)
+![Итого](assets/4.png)
+
+Продолжаем заполнять данные
+
+```sql
+INSERT INTO bookings (table_id, client_name, booking_time) VALUES
+(4, 'Александр', '2026-11-08 19:00:00');
+
+INSERT INTO orders (table_id, waiter_id, created_at, additional_info, finale_price) VALUES
+(2, 1, '2026-11-08 12:30:00', 'Мария', 430.00),
+(1, 2, '2026-11-08 13:15:00', 'Константин', 250.00);
+
+SELECT * FROM bookings;
+SELECT * FROM orders;
+```
+
+![](assets/5.png)
+![Получаймый результат](assets/6.png)
+
+ЧаВо? А почему у меня Мария раздоилась?
+
+Спустя некоторое время пробития нейронок и интернета, я выяснил, что у Марии раздвоение личности, ибо я не могу иначе объяснить происходящее... Ну и ладно, продолжаем.
+
+```sql
+INSERT INTO order_items (order_id, dish_id, quantity, price_at_sale) VALUES
+(1, 1, 1, 250.00),
+(1, 2, 1, 180.00);
+
+INSERT INTO order_items (order_id, dish_id, quantity, price_at_sale) VALUES
+(2, 1, 1, 250.00);
+
+SELECT * FROM order_items;
+```
+
+```terminal
+ERROR:  INSERT или UPDATE в таблице "order_items" нарушает ограничение внешнего ключа "order_items_order_id_fkey"
+Ключ (order_id)=(1) отсутствует в таблице "orders". 
+
+ОШИБКА:  INSERT или UPDATE в таблице "order_items" нарушает ограничение внешнего ключа "order_items_order_id_fkey"
+SQL state: 23503
+Detail: Ключ (order_id)=(1) отсутствует в таблице "orders".
+```
+
+А как так-то... Всмысле у меня там ничего нет? Я ж сам своими очами наблюдал сие творение... КАК? Хорошо, проверим кое-что.
+
+![](assets/7.png)
+
+Да как так-то... Ладно, просто правим запрос
+
+```sql
+INSERT INTO order_items (order_id, dish_id, quantity, price_at_sale) VALUES
+(3, 1, 1, 250.00),
+(4, 2, 1, 180.00);
+
+INSERT INTO order_items (order_id, dish_id, quantity, price_at_sale) VALUES
+(5, 1, 1, 250.00);
+
+SELECT * FROM order_items;
+```
+
+![](assets/8.png)
+
+Почему оно пропускает первые числа... Что не так с id...
+
+Вскоре я понял, что я до этого запускал код, но приложение зависло, а после я ещё раз нажал на запуск. Оно сработало 2 раза, но не сработало... Что за бред...
+
+Продолжим.
+
+```sql
+INSERT INTO supplier_transactions (ingredient_id, quantity, purchase_price, transaction_date) VALUES
+(6, 1000, 1.20, '2026-11-07'); --купили 1000г кофе по 1.2 руб за грамм (1200 руб)
+
+INSERT INTO finance_ledger (type, amount, description, order_id, supply_id) VALUES
+('income', 430.00, 'Оплата заказа №1', 1, NULL),
+('income', 250.00, 'Оплата заказа №2', 2, NULL),
+('expense', 1200.00, 'Закупка кофе в зернах', NULL, 1);
+```
+
+```terminal
+ERROR:  отношение "supplier_transactions" не существует
+LINE 1: INSERT INTO supplier_transactions (ingredient_id, quantity, ...
+                    ^ 
+
+ОШИБКА:  отношение "supplier_transactions" не существует
+SQL state: 42P01
+Character: 13
+```
+
+... У меня нет слов...
+
+```sql
+INSERT INTO supplier_transaction (ingredient_id, quantity, purchase_price, transaction_date) VALUES
+(6, 1000, 1.20, '2026-11-07'); --купили 1000г кофе по 1.2 руб за грамм (1200 руб)
+
+INSERT INTO finance_ledger (type, amount, description, order_id, supply_id) VALUES
+('income', 430.00, 'Оплата заказа №1', 4, NULL),
+('income', 250.00, 'Оплата заказа №2', 5, NULL),
+('expense', 1200.00, 'Закупка кофе в зернах', NULL, 5);
+
+SELECT * FROM supplier_transaction;
+SELECT * FROM finance_ledger;
+```
+
+Ну да, я добавил лищнюю букву... у меня же supplier_transaction, а не supplier_transactions. Ну и id нужно поправить.
+
+![](assets/9.png)
+![](assets/10.png)
+
+Ну и всё. Вроде как всё.
+
+Удачки вам!
